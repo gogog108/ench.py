@@ -1,0 +1,45 @@
+from flask import Flask, render_template, request, jsonify
+import sqlite3
+
+app = Flask(__name__)
+DB_FILE = "ench_fy.db"
+
+def search_query(query_text):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # Leverages native BM25 relevance algorithm with match highlighting 
+    cursor.execute("""
+        SELECT title, url, snippet(documents, 2, '<b>', '</b>', '...', 15) as preview 
+        FROM documents 
+        WHERE documents MATCH ? 
+        ORDER BY bm25(documents) 
+        LIMIT 20
+    """, (query_text,))
+    results = cursor.fetchall()
+    conn.close()
+    return [{"title": r[0], "url": r[1], "snippet": r[2]} for r in results]
+
+@app.route("/", methods=["GET"])
+def index():
+    query = request.args.get("q", "")
+    results = []
+    if query:
+        try:
+            results = search_query(query)
+        except sqlite3.OperationalError:
+            results = [] # Graceful degradation for query syntax slips
+    return render_template("index.html", query=query, results=results)
+
+@app.route("/api/search", methods=["GET"])
+def api_search():
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"error": "Missing query parameter 'q'"}), 400
+    try:
+        results = search_query(query)
+        return jsonify({"query": query, "results": results})
+    except sqlite3.OperationalError:
+        return jsonify({"query": query, "results": [], "error": "Invalid search syntax"}), 400
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
