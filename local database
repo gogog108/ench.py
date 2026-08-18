@@ -1,0 +1,30 @@
+import sqlite3
+
+DB_FILE = "ench_fy.db"
+
+def init_database():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS documents")
+    
+    # Initialize a fast Full-Text Search (FTS5) index structure
+    cursor.execute("""
+        CREATE VIRTUAL TABLE documents USING fts5(
+            title,
+            url UNINDEXED,
+            content
+        )
+    """)
+    
+    # Populate mock system parameters
+    sample_data = [
+        ("Ench.fy Documentation", "https://github.com", "Welcome to ench.fy, the lightning-fast open source search engine project. Learn how to configure indexes and deploy pipelines."),
+        ("SQLite FTS5 Extension Guide", "https://sqlite.org", "SQLite FTS5 is a virtual table module that provides full-text search capabilities to applications.")
+    ]
+    cursor.executemany("INSERT INTO documents (title, url, content) VALUES (?, ?, ?)", sample_data)
+    conn.commit()
+    conn.close()
+    print("Database built successfully!")
+
+if __name__ == "__main__":
+    init_database()
